@@ -102,9 +102,11 @@ def descargar_norma(con: sqlite3.Connection, alias: str, forzar: bool = False) -
                 if p:
                     titulo = _corto(p[0], 90)
 
+            # Los códigos Civil y de Comercio abrevian «Artículo» en los títulos de bloque.
+            titulo_normalizado = re.sub(r"^Art\.?\s+(?=\d)", "Artículo ", titulo, flags=re.I)
             cur = con.execute(
                 "INSERT INTO bloques(alias,bloque_id,tipo,titulo,titulo_clave,ruta,orden) VALUES (?,?,?,?,?,?,?)",
-                (alias, bloque.get("id"), tipo, titulo, tx.clave(titulo), ruta_txt, orden))
+                (alias, bloque.get("id"), tipo, titulo, tx.clave(titulo_normalizado), ruta_txt, orden))
             bloque_pk = cur.lastrowid
             n_bloques += 1
             for i, v in enumerate(versiones):
@@ -114,7 +116,7 @@ def descargar_norma(con: sqlite3.Connection, alias: str, forzar: bool = False) -
                 cur = con.execute(
                     "INSERT INTO versiones(bloque_pk,id_norma,fecha_publicacion,fecha_vigencia,fecha_hasta,texto,notas)"
                     " VALUES (?,?,?,?,?,?,?)",
-                    (bloque_pk, v.get("id_norma"), v.get("fecha_publicacion"), v.get("fecha_vigencia"), hasta,
+                    (bloque_pk, v.get("id_norma"), v.get("fecha_publicacion"), v.get("fecha_vigencia") or None, hasta,
                      texto, "\n".join(notas)))
                 if tipo in ("precepto", "preambulo") or (tipo == "encabezado" and len(texto) > 300):
                     con.execute("INSERT INTO versiones_fts(rowid,titulo,ruta,texto) VALUES (?,?,?,?)",
@@ -217,7 +219,7 @@ def obtener_articulo(con: sqlite3.Connection, alias: str, articulo: str, fecha: 
     salida = []
     for b in bloques:
         versiones = con.execute("SELECT * FROM versiones WHERE bloque_pk=? ORDER BY fecha_vigencia", (b["id"],)).fetchall()
-        v = next((x for x in versiones if x["fecha_vigencia"] <= f and (not x["fecha_hasta"] or x["fecha_hasta"] > f)), None)
+        v = next((x for x in versiones if x["fecha_vigencia"] and x["fecha_vigencia"] <= f and (not x["fecha_hasta"] or x["fecha_hasta"] > f)), None)
         historial = "; ".join(
             f"desde {fmt_fecha(x['fecha_vigencia'])}" + (f" ({x['id_norma']})" if x["id_norma"] != norma["boe_id"] else " (original)")
             for x in versiones)

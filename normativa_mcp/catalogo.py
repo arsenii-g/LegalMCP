@@ -6,6 +6,10 @@ Para añadir una norma: buscar su identificador en https://www.boe.es/buscar/leg
 (o con `python -m normativa_mcp.ingest --buscar "1065/2007"`) y añadir una línea.
 """
 
+import re
+import unicodedata
+
+
 NORMAS: dict[str, tuple[str, str]] = {
     # --- Procedimiento tributario ---
     "LGT": ("BOE-A-2003-23186", "Ley 58/2003, de 17 de diciembre, General Tributaria"),
@@ -24,11 +28,30 @@ NORMAS: dict[str, tuple[str, str]] = {
     "TRLITPAJD": ("BOE-A-1993-25359", "RDLeg 1/1993, Texto refundido de la Ley del ITP y AJD"),
     "RITPAJD": ("BOE-A-1995-15071", "RD 828/1995, Reglamento del ITP y AJD"),
     "LISD": ("BOE-A-1987-28141", "Ley 29/1987, del Impuesto sobre Sucesiones y Donaciones"),
+    "TRLIRNR": ("BOE-A-2004-4527", "RDLeg 5/2004, Texto refundido de la Ley del Impuesto sobre la Renta de no Residentes"),
+    "RIRNR": ("BOE-A-2004-14532", "RD 1776/2004, Reglamento del Impuesto sobre la Renta de no Residentes"),
+    "LIP": ("BOE-A-1991-14392", "Ley 19/1991, del Impuesto sobre el Patrimonio"),
+    "ITSGF": ("BOE-A-2022-22684", "Ley 38/2022, de gravámenes temporales y del Impuesto Temporal de Solidaridad de las Grandes Fortunas"),
+    "LIIEE": ("BOE-A-1992-28741", "Ley 38/1992, de Impuestos Especiales"),
+    "RIIEE": ("BOE-A-1995-18266", "RD 1165/1995, Reglamento de los Impuestos Especiales"),
+    "TRLRHL": ("BOE-A-2004-4214", "RDLeg 2/2004, Texto refundido de la Ley Reguladora de las Haciendas Locales"),
+    "LMECENAZGO": ("BOE-A-2002-25039", "Ley 49/2002, de régimen fiscal de las entidades sin fines lucrativos y de los incentivos fiscales al mecenazgo"),
+    "LFCCAA": ("BOE-A-2009-20375", "Ley 22/2009, de financiación de las Comunidades Autónomas de régimen común"),
+    "LLPE": ("BOE-A-2012-13416", "Ley 7/2012, de prevención y lucha contra el fraude"),
+    "RVERIFACTU": ("BOE-A-2023-24840", "RD 1007/2023, Reglamento de requisitos de los sistemas informáticos de facturación"),
     # --- Procedimiento administrativo y contencioso ---
     "LPAC": ("BOE-A-2015-10565", "Ley 39/2015, del Procedimiento Administrativo Común de las AAPP"),
     "LJCA": ("BOE-A-1998-16718", "Ley 29/1998, reguladora de la Jurisdicción Contencioso-administrativa"),
-    # --- Contabilidad ---
+    "LRJSP": ("BOE-A-2015-10566", "Ley 40/2015, de Régimen Jurídico del Sector Público"),
+    # --- Mercantil y contabilidad ---
     "PGC": ("BOE-A-2007-19884", "RD 1514/2007, Plan General de Contabilidad"),
+    "LSC": ("BOE-A-2010-10544", "RDLeg 1/2010, Texto refundido de la Ley de Sociedades de Capital"),
+    "CCOM": ("BOE-A-1885-6627", "Código de Comercio (1885)"),
+    "PGCPYMES": ("BOE-A-2007-19966", "RD 1515/2007, Plan General de Contabilidad de Pequeñas y Medianas Empresas"),
+    "LAC": ("BOE-A-2015-8147", "Ley 22/2015, de Auditoría de Cuentas"),
+    # --- Penal y civil ---
+    "CP": ("BOE-A-1995-25444", "Ley Orgánica 10/1995, del Código Penal"),
+    "CC": ("BOE-A-1889-4763", "Código Civil (1889)"),
 }
 
 # Sinónimos habituales que el modelo o el usuario pueden escribir.
@@ -62,6 +85,46 @@ SINONIMOS: dict[str, str] = {
     "39/2015": "LPAC",
     "29/1998": "LJCA",
     "1514/2007": "PGC",
+    "5/2004": "TRLIRNR",
+    "IRNR": "TRLIRNR",
+    "1776/2004": "RIRNR",
+    "REGLAMENTO DEL IRNR": "RIRNR",
+    "19/1991": "LIP",
+    "IMPUESTO SOBRE EL PATRIMONIO": "LIP",
+    "38/2022": "ITSGF",
+    "GRANDES FORTUNAS": "ITSGF",
+    "38/1992": "LIIEE",
+    "IMPUESTOS ESPECIALES": "LIIEE",
+    "1165/1995": "RIIEE",
+    "REGLAMENTO DE LOS IMPUESTOS ESPECIALES": "RIIEE",
+    "2/2004": "TRLRHL",
+    "HACIENDAS LOCALES": "TRLRHL",
+    "PLUSVALIA": "TRLRHL",
+    "IIVTNU": "TRLRHL",
+    "IBI": "TRLRHL",
+    "IAE": "TRLRHL",
+    "ICIO": "TRLRHL",
+    "49/2002": "LMECENAZGO",
+    "MECENAZGO": "LMECENAZGO",
+    "22/2009": "LFCCAA",
+    "FINANCIACION AUTONOMICA": "LFCCAA",
+    "7/2012": "LLPE",
+    "PAGOS EN EFECTIVO": "LLPE",
+    "1007/2023": "RVERIFACTU",
+    "VERIFACTU": "RVERIFACTU",
+    "VERI*FACTU": "RVERIFACTU",
+    "40/2015": "LRJSP",
+    "REGIMEN JURIDICO DEL SECTOR PUBLICO": "LRJSP",
+    "1/2010": "LSC",
+    "SOCIEDADES DE CAPITAL": "LSC",
+    "CODIGO DE COMERCIO": "CCOM",
+    "1515/2007": "PGCPYMES",
+    "PGC PYMES": "PGCPYMES",
+    "22/2015": "LAC",
+    "AUDITORIA DE CUENTAS": "LAC",
+    "10/1995": "CP",
+    "CODIGO PENAL": "CP",
+    "CODIGO CIVIL": "CC",
 }
 
 
@@ -78,13 +141,11 @@ def resolver_alias(texto: str) -> str | None:
     if t in SINONIMOS:
         return SINONIMOS[t]
     # Búsqueda por número oficial dentro del texto ("Ley 58/2003, General Tributaria")
-    import unicodedata
-
     t2 = "".join(c for c in unicodedata.normalize("NFD", t) if unicodedata.category(c) != "Mn")
-    for clave, alias in SINONIMOS.items():
-        if "/" in clave and clave in t2:
-            return alias
-    for clave, alias in SINONIMOS.items():
+    for numero in re.findall(r"(?<!\d)\d+/\d{4}(?!\d)", t2):
+        if numero in SINONIMOS:
+            return SINONIMOS[numero]
+    for clave in sorted(SINONIMOS, key=len, reverse=True):
         if "/" not in clave and len(clave) > 4 and clave in t2:
-            return alias
+            return SINONIMOS[clave]
     return None

@@ -25,16 +25,26 @@ def tokens(s: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", s)
 
 
-def stems(s: str, quitar_stopwords: bool = True) -> list[str]:
+def _stems(s: str, quitar_stopwords: bool) -> list[str]:
     toks = tokens(s)
     if quitar_stopwords:
         toks = [t for t in toks if t not in STOPWORDS and len(t) > 1]
     return _stemmer.stemWords(toks)
 
 
+def stems(s: str, quitar_stopwords: bool = True) -> list[str]:
+    """Añade a las expresiones de consulta habituales el vocabulario usado por el BOE."""
+    normalizado = sin_acentos(s.lower())
+    if re.search(r"\b(?:plusvalia municipal|plusvalias municipales)\b", normalizado):
+        s += " incremento valor terrenos naturaleza urbana"
+    if re.search(r"\bdelito fiscal\b|\bdelitos fiscales\b", normalizado):
+        s += " defraude Hacienda Pública tributos"
+    return _stems(s, quitar_stopwords)
+
+
 def texto_indexable(s: str) -> str:
     """Texto lematizado que se guarda en el índice FTS5 (BM25)."""
-    return " ".join(stems(s, quitar_stopwords=True))
+    return " ".join(_stems(s, quitar_stopwords=True))
 
 
 # ---------------------------------------------------------------- claves de artículo
