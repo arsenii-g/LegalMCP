@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+.webui_secret_key
+opencode.json
+*.egg-info/
+build/
+dist/
+.pytest_cache/
